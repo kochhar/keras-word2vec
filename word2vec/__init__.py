@@ -80,7 +80,7 @@ class SkipGramNegSample(object):
 
         # for the validation model, apply cosine similarity
         similarity = layers.merge.dot([target, context], axes=1, normalize=True)
-        similarity = larers.Reshape((1,), name='sim')(similarity)
+        similarity = layers.Reshape((1,), name='sim')(similarity)
 
         validation_model = models.Model(inputs=[in_target, in_context], outputs=similarity)
         return model, validation_model
