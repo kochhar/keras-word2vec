@@ -1,5 +1,6 @@
 import collections
 from keras import layers
+from keras.layers import merge
 from keras import models
 from keras.preprocessing import sequence as seq
 import logging
@@ -71,7 +72,7 @@ class SkipGramNegSample(object):
         context = embedding(in_context)
         context = layers.Reshape((embedding_dim, 1), name='context')(context)
 
-        dot_product = layers.merge.dot([target, context], axes=1)
+        dot_product = merge.dot([target, context], axes=1)
         dot_product = layers.Reshape((1,), name='dot')(dot_product)
         output = layers.Dense(1, activation='sigmoid', name='output')(dot_product)
 
@@ -79,7 +80,7 @@ class SkipGramNegSample(object):
         model.compile(loss='binary_crossentropy', optimizer='rmsprop')
 
         # for the validation model, apply cosine similarity
-        similarity = layers.merge.dot([target, context], axes=1, normalize=True)
+        similarity = merge.dot([target, context], axes=1, normalize=True)
         similarity = layers.Reshape((1,), name='sim')(similarity)
 
         validation_model = models.Model(inputs=[in_target, in_context], outputs=similarity)
