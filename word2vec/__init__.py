@@ -17,19 +17,6 @@ def str_from_zipfile(zipfilename, fileidx=0):
     return data
 
 
-class Docset(object):
-    def __init__(self, init_doc):
-        self.count = collections.Counter()
-        self.add(init_doc)
-
-    def add(self, doc):
-        self.count.update(doc)
-
-    def vocabulary(self, num_words):
-        counts = [('UNK', -1)] + self.count.most_common(num_words-1)
-        return Vocabulary([word for (word, _) in counts ])
-
-
 class Vocabulary(object):
     def __init__(self, words):
         self._size = len(words)
@@ -55,14 +42,27 @@ class Vocabulary(object):
 
 
 class SkipGramNegSample(object):
-    def __init__(self, embedding_dim):
+    def __init__(self, vocab_size, embedding_dim):
         self.embedding_dim = embedding_dim
+        self.vocab_size = vocab_size
 
-    def model(self, vocab):
+    def skipgrams(self, tokens, window_size=3):
+        # Inputs and labels
+        sampling_table = seq.make_sampling_table(self.vocab_size)
+        logging.info('Creating skipgrams')
+        skipgrams, labels = seq.skipgrams(tokens, self.vocab_size, window_size=window_size,
+                                          sampling_table=sampling_table)
+        # downconvert the target and context vectors int16
+        word_target, word_context = zip(*skipgrams)
+        word_target = np.array(word_target, dtype='int32')
+        word_context = np.array(word_context, dtype='int32')
+        return (word_target, word_context, labels)
+
+    def model(self):
         """prepare the model"""
         embedding_dim = self.embedding_dim
         in_target, in_context = layers.Input((1, )), layers.Input((1, ))
-        embedding = layers.Embedding(vocab.size, embedding_dim, input_length=1, name='embedding')
+        embedding = layers.Embedding(self.vocab_size, embedding_dim, input_length=1, name='embedding')
 
         target = embedding(in_target)
         target = layers.Reshape((embedding_dim, 1))(target)
@@ -79,6 +79,7 @@ class SkipGramNegSample(object):
 
         # for the validation model, apply cosine similarity
         similarity = layers.merge.dot([target, context], axes=1, normalize=True)
+
         validation_model = models.Model(inputs=[in_target, in_context], outputs=similarity)
         return model, validation_model
 
@@ -109,20 +110,8 @@ class Similarity(object):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format="[%(asctime)s]%(levelname)s:%(name)s:%(message)s",
-                        level=logging.INFO)
-    logging.info('logging configured')
 
-    filename = 'text8.zip'
-    logging.info('Reading corpus')
-    training_corpus = str_from_zipfile(filename).split()
 
-    logging.info('Creating vocabulary')
-    vocab = Docset(training_corpus).vocabulary(int(1e4))
-    logging.info('Encoding corpus')
-    tokens = vocab.encode(training_corpus)
-    logging.info(list(zip(training_corpus[:7], tokens[:7])))
-    del training_corpus
 
     # Validation set for inspecting training progress
     # Max index of the random sampling from tokens (implies choosing
@@ -131,21 +120,7 @@ if __name__ == '__main__':
     valid_samples = np.random.choice(max_token_idx, size=16, replace=False)
 
     epochs = int(1e6)
-    word2vec = SkipGramNegSample(embedding_dim=300)
-    model, validation_model = word2vec.model(vocab)
-    sim_eval = Similarity(validation_model)
 
-    # Inputs and labels
-    sampling_table = seq.make_sampling_table(vocab.size)
-    logging.info('Creating skipgrams')
-    skipgrams, labels = seq.skipgrams(tokens, vocab.size, window_size=3,
-                                      sampling_table=sampling_table)
-    # downconvert the target and context vectors int16
-    word_target, word_context = zip(*skipgrams)
-    word_target = np.array(word_target, dtype='int32')
-    word_context = np.array(word_context, dtype='int32')
-    logging.info(list(zip(word_target[:10], word_context[:10], labels[:10])))
-    del tokens
 
     # Feeding to the network
     ex_t, ex_c, ex_l = np.zeros((1,)), np.zeros((1,)), np.zeros((1,))
