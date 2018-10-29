@@ -49,7 +49,6 @@ class SkipGramNegSample(object):
     def skipgrams(self, tokens, window_size=3):
         # Inputs and labels
         sampling_table = seq.make_sampling_table(self.vocab_size)
-        logging.info('Creating skipgrams')
         skipgrams, labels = seq.skipgrams(tokens, self.vocab_size, window_size=window_size,
                                           sampling_table=sampling_table)
         # downconvert the target and context vectors int16
@@ -60,25 +59,28 @@ class SkipGramNegSample(object):
 
     def model(self):
         """prepare the model"""
+        in_target = layers.Input((1, ), name='in_tgt')
+        in_context = layers.Input((1, ), name='in_ctx')
+
         embedding_dim = self.embedding_dim
-        in_target, in_context = layers.Input((1, )), layers.Input((1, ))
         embedding = layers.Embedding(self.vocab_size, embedding_dim, input_length=1, name='embedding')
 
         target = embedding(in_target)
-        target = layers.Reshape((embedding_dim, 1))(target)
+        target = layers.Reshape((embedding_dim, 1), name='target')(target)
 
         context = embedding(in_context)
-        context = layers.Reshape((embedding_dim, 1))(context)
+        context = layers.Reshape((embedding_dim, 1), name='context')(context)
 
         dot_product = layers.merge.dot([target, context], axes=1)
-        dot_product = layers.Reshape((1,))(dot_product)
-        output = layers.Dense(1, activation='sigmoid')(dot_product)
+        dot_product = layers.Reshape((1,), name='dot')(dot_product)
+        output = layers.Dense(1, activation='sigmoid', name='output')(dot_product)
 
         model = models.Model(inputs=[in_target, in_context], outputs=output)
         model.compile(loss='binary_crossentropy', optimizer='rmsprop')
 
         # for the validation model, apply cosine similarity
         similarity = layers.merge.dot([target, context], axes=1, normalize=True)
+        similarity = larers.Reshape((1,), name='sim')(similarity)
 
         validation_model = models.Model(inputs=[in_target, in_context], outputs=similarity)
         return model, validation_model
@@ -108,31 +110,3 @@ class Similarity(object):
 
         return sim
 
-
-if __name__ == '__main__':
-
-
-
-    # Validation set for inspecting training progress
-    # Max index of the random sampling from tokens (implies choosing
-    # from the the top-N occurring tokens)
-    max_token_idx = 100
-    valid_samples = np.random.choice(max_token_idx, size=16, replace=False)
-
-    epochs = int(1e6)
-
-
-    # Feeding to the network
-    ex_t, ex_c, ex_l = np.zeros((1,)), np.zeros((1,)), np.zeros((1,))
-    for cnt in range(epochs):
-        idx = np.random.randint(0, len(labels)-1)
-        ex_t[0,], ex_c[0,], ex_l[0,] = word_target[idx], word_context[idx], labels[idx]
-        loss = model.train_on_batch([ex_t, ex_c], ex_l)
-        if cnt % 1000 == 0:
-            logging.info("Iteration %s, loss=%s", cnt, loss)
-        if cnt % 25000 == 0:
-            most_similar = sim_eval.most_similar(valid_samples, vocab)
-            log_str = '\n'.join(['Nearest to {}: {}'
-                                    .format(vocab.decode([ex]), ', '.join(vocab.decode(sim)))
-                                for (ex, sim) in most_similar])
-            logging.info(log_str)
