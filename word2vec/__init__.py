@@ -72,7 +72,7 @@ class SkipGramNegSample(object):
         context = embedding(in_context)
         context = layers.Reshape((embedding_dim, 1), name='context')(context)
 
-        dot_product = merge.dot([target, context], axes=1)
+        dot_product = layers.Dot(axes=1)([target, context])
         dot_product = layers.Reshape((1,), name='dot')(dot_product)
         output = layers.Dense(1, activation='sigmoid', name='output')(dot_product)
 
@@ -80,7 +80,7 @@ class SkipGramNegSample(object):
         model.compile(loss='binary_crossentropy', optimizer='rmsprop')
 
         # for the validation model, apply cosine similarity
-        similarity = merge.dot([target, context], axes=1, normalize=True)
+        similarity = layers.Dot(axes=1, normalize=True)([target, context])
         similarity = layers.Reshape((1,), name='sim')(similarity)
 
         validation_model = models.Model(inputs=[in_target, in_context], outputs=similarity)
