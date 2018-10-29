@@ -97,16 +97,16 @@ class Similarity(object):
         sim_fn = self.sim
 
         sims = [(ex, sim_fn(ex, vocab.size)) for ex in examples]
-        return [(ex, (-sim).argsort()[1:top_k+1]) for (ex, sim) in sims]
+        return [(ex, (-sim).argsort()[0:top_k+1]) for (ex, sim) in sims]
 
     def sim(self, target, vocab_size):
-        sim = np.zeros((vocab_size,))
+        sims = np.zeros((vocab_size,))
         ex_t = np.zeros((1,))
         ex_c = np.zeros((1,))
         for i in range(vocab_size):
             ex_t[0,] = target
             ex_c[0,] = i
-            sim[i] = self.sim_model.predict_on_batch([ex_t, ex_c])
+            sims[i] = self.sim_model.predict_on_batch([ex_t, ex_c])
 
-        return sim
+        return sims
 
