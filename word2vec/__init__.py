@@ -96,14 +96,18 @@ class Similarity(object):
 
     def most_similar(self, examples, vocab, top_k=10):
         sim_fn = self.sim
+        contexts = range(vocab.size)
+        # compute the similarity between the example and every context word in the vocabulary
+        sims = [(ex, sim_fn(ex, contexts)) for ex in examples]
+        sims = [(ex, (-sim).argsort()[1:top_k+1], sim) for (ex, sim) in sims]
+        return [(ex, top_idx, sim[top_idx]) for (ex, top_idx, sim) in sims]
 
-        sims = [(ex, sim_fn(ex, vocab.size)) for ex in examples]
-        return [(ex, (-sim).argsort()[0:top_k+1]) for (ex, sim) in sims]
+    def sim(self, target, contexts):
+        context_b = np.array(contexts)
+        # the target word for every item in the batch is the same
+        target_b = np.array([target]*len(contexts))
+        sim_b = self.sim_model.predict_on_batch([target_b, context_b])
 
-    def sim(self, target, vocab_size):
-        ex_t = np.array([target]*vocab_size)
-        ex_c = np.array(range(vocab_size))
-        sims = self.sim_model.predict_on_batch([ex_t, ex_c])
-        logging.info(sims)
-        return sims
-
+        # reshape from (len(contexts), 1) to (len(contexts),)
+        sim_b = sim_b.reshape(context_b.shape)
+        return sim_b
