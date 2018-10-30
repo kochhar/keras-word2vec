@@ -51,7 +51,7 @@ class SkipGramNegSample(object):
         # Inputs and labels
         sampling_table = seq.make_sampling_table(self.vocab_size)
         skipgrams, labels = seq.skipgrams(tokens, self.vocab_size, window_size=window_size,
-                                          sampling_table=sampling_table)
+                                          shuffle=True, sampling_table=sampling_table)
         # downconvert the target and context vectors int16
         word_target, word_context = zip(*skipgrams)
         word_target = np.array(word_target, dtype='int32')
